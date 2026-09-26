@@ -20,20 +20,34 @@ function localScenario(name) {
   const names = name === 'all' ? Object.keys(LOCAL_EVENTS) : name.split(',').filter(Boolean)
   return names.flatMap(n => LOCAL_EVENTS[n] || [])
 }
-async function runLocalSimulation(name, push, setStage) {
+const API_BASE = (window.__M1_API_BASE_URL__ || import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const apiUrl = (path) => `${API_BASE}${path}`
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function runLocalSimulation(name, push, setStage, dryRun = false) {
   const incidents=[]
-  push({type:'stage',data:{stage:'snapshot',message:'Local disposable lab snapshot prepared'}}); setStage('snapshot'); await new Promise(r=>setTimeout(r,250))
+  const prefix = dryRun ? 'DRY RUN: ' : ''
+  push({type:'stage',data:{stage:'snapshot',message:`${prefix}Local disposable lab snapshot prepared`}}); setStage('snapshot'); await new Promise(r=>setTimeout(r,250))
   for (const event of localScenario(name)) {
-    setStage('offensive'); push({type:'stage',data:{stage:'offensive',message:`Simulated event: ${event.event_type}`}}); await new Promise(r=>setTimeout(r,300))
-    setStage('os_defense'); push({type:'stage',data:{stage:'os_defense',message:'OS security adapter inspecting event'}}); await new Promise(r=>setTimeout(r,220))
+    setStage('offensive'); push({type:'stage',data:{stage:'offensive',message:`${prefix}Simulated event: ${event.event_type}`}}); await new Promise(r=>setTimeout(r,300))
+    setStage('os_defense'); push({type:'stage',data:{stage:'os_defense',message:`${prefix}OS security adapter inspecting event`}}); await new Promise(r=>setTimeout(r,220))
     const rule=LOCAL_RULES[event.event_type]; const osHandled=rule[2]==='OS security stack'
-    if (osHandled) push({type:'stage',data:{stage:'m1_defense',message:'OS security stack contained the event'}})
-    else { setStage('m1_defense'); push({type:'stage',data:{stage:'m1_defense',message:'OS layer did not handle event; M-1 defensive layer engaged'}}) }
+    if (osHandled) push({type:'stage',data:{stage:'m1_defense',message:`${prefix}OS security stack contained the event`}})
+    else { setStage('m1_defense'); push({type:'stage',data:{stage:'m1_defense',message:`${prefix}OS layer did not handle event; M-1 defensive layer engaged`}}) }
     await new Promise(r=>setTimeout(r,220))
     const item={event:event.event_type,severity:rule[0],reason:rule[1],contained:true,action:'Block and record simulated event',handled_by:osHandled?'os_security_stack':'m1_defensive_layer'}
     incidents.push(item); push({type:'incident',data:item}); await new Promise(r=>setTimeout(r,300))
   }
-  setStage('complete'); const result={scenario:name,incidents,all_contained:true,baseline_intact:true,recovery_required:false,snapshot_created:true,external_recovery_required:false,execution:'android-local-safe-simulator'}
+  setStage('complete'); const result={scenario:name,dry_run:dryRun,incidents,all_contained:true,baseline_intact:true,recovery_required:false,snapshot_created:!dryRun,external_recovery_required:false,execution:'local-safe-simulator'}
   push({type:'complete',data:result}); return result
 }
 
@@ -79,7 +93,7 @@ function App() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/health').then(r => r.ok ? r.json() : Promise.reject()).then(() => setConnected(true)).catch(() => setConnected(false))
+    fetchWithTimeout(apiUrl('/api/health')).then(r => r.ok ? r.json() : Promise.reject()).then(() => setConnected(true)).catch(() => setConnected(false))
   }, [running])
 
   const incidents = useMemo(() => events.filter(e => e.type === 'incident').map(e => e.data), [events])
@@ -94,15 +108,32 @@ function App() {
   async function start(runScenario = selected, dryRun = false) {
     setRunning(true); setEvents([]); setResult(null); setError(''); setActiveStage('snapshot'); setPage('live')
     try {
-      const res = await fetch('/api/test/stream', {
+      const res = await fetchWithTimeout(apiUrl('/api/test/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
         body: JSON.stringify({ scenario: runScenario, dry_run: dryRun })
-      })
-      if (!res.ok) throw new Error(await res.text())
+      }, 5000)
+      if (!res.ok) {
+        if ([404, 405, 502, 503, 504].includes(res.status)) {
+          setConnected(false)
+          setError('API unavailable — local safe simulator active.')
+          const localResult = await runLocalSimulation(runScenario, (event) => setEvents(x => [...x, event]), setActiveStage, dryRun)
+          setResult(localResult)
+          return localResult
+        }
+        throw new Error(await res.text())
+      }
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('text/event-stream')) {
+        setConnected(false)
+        setError('API unavailable — local safe simulator active.')
+        const localResult = await runLocalSimulation(runScenario, (event) => setEvents(x => [...x, event]), setActiveStage, dryRun)
+        setResult(localResult)
+        return localResult
+      }
       setConnected(true)
       if (!res.body) throw new Error('Backend did not provide an event stream')
-      const reader = res.body.getReader(), decoder = new TextDecoder(); let buffer = ''
+      const reader = res.body.getReader(), decoder = new TextDecoder(); let buffer = '', completed = false
       while (true) {
         const { value, done } = await reader.read(); if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -110,7 +141,7 @@ function App() {
         for (const chunk of chunks) {
           const line = chunk.split('\n').find(x => x.startsWith('data: ')); if (!line) continue
           const payload = JSON.parse(line.slice(6))
-          if (payload.type === 'complete') { setResult(payload.data); setActiveStage('complete') }
+          if (payload.type === 'complete') { completed = true; setResult(payload.data); setActiveStage('complete') }
           else if (payload.type === 'run_started') {
             setEvents(x => [...x, payload])
           } else {
@@ -118,8 +149,21 @@ function App() {
           }
         }
       }
+      if (!completed) {
+        setConnected(false)
+        setError('API stream ended early — local safe simulator active.')
+        const localResult = await runLocalSimulation(runScenario, (event) => setEvents(x => [...x, event]), setActiveStage, dryRun)
+        setResult(localResult)
+        return localResult
+      }
     } catch (err) {
       setConnected(false)
+      if (err?.name === 'AbortError' || err instanceof TypeError) {
+        setError('API unavailable — local safe simulator active.')
+        const localResult = await runLocalSimulation(runScenario, (event) => setEvents(x => [...x, event]), setActiveStage, dryRun)
+        setResult(localResult)
+        return localResult
+      }
       setError(err?.message || 'Unable to connect to the M-1 backend')
     } finally { setRunning(false) }
   }
@@ -193,5 +237,5 @@ function Stat({ label, value, sub, tone='' }) { return <div className="stat"><sp
 function Step({ n, title, text, done }) { return <div className={`step ${done ? 'done' : ''}`}><span>{n}</span><div><b>{title}</b><p>{text}</p></div><i>{done ? '✓' : '○'}</i></div> }
 function ReportMetric({ title, value }) { return <div className="reportMetric"><span>{title}</span><b>{value}</b></div> }
 
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register(new URL('./sw.js', window.location.href)).catch(() => {}))
 createRoot(document.getElementById('root')).render(<App />)
