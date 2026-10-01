@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: m1-system-security-analysis
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: M1_ALLOWED_ORIGINS
+        value: "*"

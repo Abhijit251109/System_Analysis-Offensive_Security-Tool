@@ -10,3 +10,4 @@ MyTool.spec
 *.egg-info
 dist/
 build/
+runtime/logs/*.jsonl

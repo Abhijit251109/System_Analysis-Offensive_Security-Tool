@@ -1,4 +1,5 @@
 from controller.models import Event, Incident, Severity
+from defensive.extensions_loader import load_extension_rules
 
 RULES = {
     'credential_capture_attempt': (Severity.CRITICAL, 'Credential capture simulation detected'),
@@ -9,7 +10,7 @@ RULES = {
 }
 
 def detect(event: Event) -> Incident | None:
-    rule = RULES.get(event.event_type)
+    rule = {**RULES, **load_extension_rules()}.get(event.event_type)
     if not rule:
         return None
     severity, reason = rule

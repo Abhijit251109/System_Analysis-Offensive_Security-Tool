@@ -1,0 +1,14 @@
+.git
+.github
+.gitignore
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+*.log
+runtime/logs/*.jsonl
+web/node_modules
+web/dist
+android/.gradle
+android/build
+android/app/build

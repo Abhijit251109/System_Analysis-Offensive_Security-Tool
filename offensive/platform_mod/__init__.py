@@ -1,8 +1,5 @@
-from . import android_shell_util
-from . import elevate
-from . import mycmd
-from . import platform_utils
-from . import powershell
-from . import shells
+"""Platform helpers for the offensive source tree.
 
-__all__ = ["android_shell_util", "elevate", "mycmd", "platform_utils", "powershell", "shells"]
+Submodules are intentionally not imported eagerly. Some legacy modules contain
+host-side execution helpers, and importing the package must remain side-effect free.
+"""

@@ -1,5 +1,4 @@
-from .manager import TerminalManager
-from .base import TerminalBase
-from .background_runner import BackgroundRun
+"""Core offensive source modules.
 
-__all__ = ["TerminalManager", "TerminalBase", "BackgroundRun"]
+Legacy helpers are not imported eagerly so source inspection stays side-effect free.
+"""

@@ -16,17 +16,30 @@ npm install
 npm run build
 ```
 
-The production output is written to `web/dist/`. The FastAPI service serves this build when you run the M-1 dashboard locally.
+The production output is written to `web/dist/`. FastAPI serves this build when the dashboard is run locally.
 
 ## GitHub Pages
 
-The repository workflow builds the React/Vite app first and deploys `web/dist/` to GitHub Pages. The Vite base path is relative, so the site works both at the repository Pages path and at a root URL.
+The GitHub Actions workflow builds and deploys `web/dist/` to GitHub Pages. GitHub Pages only hosts the React frontend; it cannot run Python or the offensive controller.
 
-When the backend is unavailable (including on ordinary static GitHub Pages hosting), the dashboard automatically uses its built-in bounded local safe simulator. When the M-1 FastAPI backend is available, the dashboard uses the backend event stream instead.
+Set the repository variable `M1_API_BASE_URL` to the public FastAPI URL, then rerun the Pages workflow. The build injects it as `VITE_API_BASE_URL`.
 
-For a separately hosted API, copy `.env.example` to `.env` and set `VITE_API_BASE_URL` before building. Cross-origin API hosting also needs the backend to permit the dashboard origin.
+When the API is unavailable, live execution buttons are disabled. The dashboard does **not** pretend a backend run happened or silently replace it with a fake live result.
 
+## Offensive Tools page
+
+The dashboard queries `/api/offensive/tools` and displays the actual offensive source inventory with:
+
+- source module;
+- capability;
+- risk level;
+- execution mode; and
+- whether the entry is blocked or available through a bounded lab adapter.
+
+Every executable lab adapter requires an explicit warning acknowledgement and the confirmation phrase `I UNDERSTAND`.
+
+Original host-destructive modules remain source-auditable but are not directly launchable from the web application.
 
 ### GitHub Pages setting
 
-In the repository's **Settings → Pages**, set **Source** to **GitHub Actions**. The workflow in `.github/workflows/static.yml` then builds and deploys the dashboard on pushes to `main` or `master`, or from the Actions tab manually.
+In **Settings → Pages**, set **Source** to **GitHub Actions**. The workflow in `.github/workflows/static.yml` deploys the dashboard on pushes to `main` or `master`, or from the Actions tab manually.

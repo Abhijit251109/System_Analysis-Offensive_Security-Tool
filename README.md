@@ -1,58 +1,99 @@
-# M-1 — Cybersecurity Defensive Lab
+# M-1 — System Security Analysis Lab
 
-M-1 is a **safe, bounded cybersecurity test harness** built from the existing project. It models attack behaviors as events instead of executing destructive or stealthy actions on the host.
+M-1 is a controlled cybersecurity lab console for learning how offensive-looking behaviors can be surfaced, detected, contained, audited and recovered in a disposable environment.
 
-## Test flow
+## What changed in this version
 
-`Safe offensive simulation → OS security stack (external) → M-1 detection → M-1 containment → baseline verification → external recovery if needed`
+The React dashboard no longer pretends that a run happened when the Python API is offline. Live buttons are disabled until the API is reachable, and every stream must end with a controller completion event.
 
-The current MVP implements the M-1 layer and baseline verification. It deliberately does **not** attempt to disable security software, delete system files, capture real keystrokes, consume unbounded disk space, establish persistence, or perform privilege escalation.
+The dashboard also has an **Offensive Tools** page. It inventories the actual `offensive/` source tree and shows the source module, capability, risk and execution mode for each entry.
 
-## Run
+Some original modules are deliberately marked **blocked** because they can:
+
+- capture real keyboard input;
+- modify protected OS paths;
+- request administrator/root privileges;
+- execute arbitrary shell commands;
+- register persistence or change ownership/permissions; or
+- run without a meaningful resource bound.
+
+Those sources remain in the repository for code review and research context. The web console never launches them directly.
+
+For the executable entries, the console uses bounded **lab adapters** that run only inside a temporary disposable workspace. The user must first open the warning dialog and type `I UNDERSTAND`.
+
+## Execution modes
+
+### Safe simulations
 
 ```bash
 python -m controller.test_runner --scenario all --lab-root .
 ```
 
-Individual scenarios: `keylogging`, `disk_fill`, `persistence`, `privilege`, `encryption`.
+These exercise the detection, containment, snapshot and recovery pipeline with synthetic events.
 
-## Test
+### Dashboard API
+
+```bash
+python -m pip install -r api/requirements.txt
+python run_dashboard.py
+```
+
+The API listens on `http://127.0.0.1:8000` by default.
+
+### React dashboard
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+For local development Vite proxies `/api` to `http://127.0.0.1:8000`.
+
+## GitHub Pages
+
+GitHub Pages can host the frontend, but it cannot execute Python. Set the repository variable `M1_API_BASE_URL` to the public URL of your separately hosted FastAPI service before deploying Pages.
+
+The workflow builds with:
+
+```text
+VITE_API_BASE_URL=${{ vars.M1_API_BASE_URL }}
+```
+
+When the API is unavailable, the UI stays in **offline** mode instead of silently switching to a fake live run.
+
+## Render deployment
+
+The repository includes a `Dockerfile` and `render.yaml` for a single-service Render deployment. The container builds the React dashboard and serves it through FastAPI. Render should deploy it as a Docker Web Service; the container binds to `0.0.0.0:$PORT` and exposes `/api/health` for the health check.
+
+The dashboard also has **ADD TO OFFENSIVE** and **ADD TO DEFENSIVE** buttons. These are browser-local staging controls: selected files and folders are kept in the current user's IndexedDB and are not uploaded to the M-1 service. A contributor can generate a `.m1request` bundle; the repository author imports it, reviews the exact paths, verifies GitHub push permission, and explicitly approves the commit/push. Approved files are written under `offensive/extensions` or `defensive/extensions`.
+
+See [RENDER.md](RENDER.md) for the deployment and persistence details.
+
+## Tests
 
 ```bash
 python -m pytest -q
 ```
 
-## Architecture
+The tests cover the simulation pipeline, OS-defense handoff, recovery and the offensive-tool safety boundary.
 
-- `offensive/simulations/` — bounded attack-event generators
-- `defensive/detector.py` — deterministic detection rules
-- `defensive/response.py` — containment of simulated incidents
-- `controller/baseline.py` — lab-state integrity baseline
-- `controller/test_runner.py` — real-time orchestration and report
-- `tests/` — automated acceptance tests
+### Defensive extension contract
 
-## Recovery boundary
+A `.py` file uploaded to `defensive/extensions` can become an active detection rule without importing or executing the file. Put a literal named `M1_RULES` in the file:
 
-A whole-system rollback should be performed by an **external disposable-VM controller / hypervisor snapshot**, not by code running inside the potentially compromised guest. M-1 only verifies its controlled lab baseline and reports whether external recovery is required.
-
-
-## M-1 Recovery Layer
-
-The MVP now models a three-stage defensive path:
-
-1. **OS security stack** gets first chance to inspect supported events.
-2. **M-1 defensive layer** handles events not covered by the OS adapter.
-3. **Recovery controller** restores the lab snapshot if the baseline changes.
-
-The included snapshot implementation is deliberately limited to the disposable lab directory. A real whole-VM snapshot/revert must be supplied by an external hypervisor/controller; M-1 does not modify host disks or hypervisor state.
-
-Run:
-
-```bash
-python -m controller.test_runner --scenario all --lab-root . --report reports/latest.json
-python -m pytest -q
+```python
+M1_RULES = {
+    "custom_event": ("HIGH", "Custom defensive rule matched")
+}
 ```
 
-## Android native app
+The controller reads that literal with `ast.literal_eval()` and merges the resulting rules into the defensive detector. Arbitrary functions in uploaded files are not executed automatically.
 
-A native Android delivery is included under `android/`. It packages the M-1 dashboard and offline safe simulator into an Android APK/AAB without requiring Python or Node.js on the phone. Build it with Android Studio or the included GitHub Actions workflow. Linux, Windows and macOS launcher/API components remain available in the project root.
+## Local project contribution workflow
+
+The two project buttons are deliberately **local-only**. Adding a file does not upload it to the server or make it visible to other users.
+
+Use **Project Requests** to generate a `.m1request` bundle. The repository author imports that request, reviews its paths and contents, verifies GitHub push permission, and explicitly types `APPROVE AND PUSH`. Only then does the app commit and push the approved files to `offensive/extensions` or `defensive/extensions`.
+
+New offensive Python files are inventoried but remain blocked from direct dashboard execution until a bounded lab adapter is reviewed and added.
