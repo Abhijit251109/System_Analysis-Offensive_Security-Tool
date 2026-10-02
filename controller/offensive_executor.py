@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import platform
-import shutil
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -51,10 +50,8 @@ def _persistence_marker(workspace: Path) -> dict:
 def _privilege_probe(_: Path) -> dict:
     if os.name == "nt":
         import ctypes
-
         is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
         return {"platform": platform.system(), "administrator": is_admin, "elevation_attempted": False}
-
     geteuid = getattr(os, "geteuid", None)
     uid = int(geteuid()) if geteuid else None
     return {"platform": platform.system(), "uid": uid, "root": uid == 0 if uid is not None else False, "elevation_attempted": False}
@@ -62,33 +59,21 @@ def _privilege_probe(_: Path) -> dict:
 
 def _fixture_encryption(workspace: Path) -> dict:
     from cryptography.fernet import Fernet
-
     source = workspace / "fixture.txt"
     encrypted = workspace / "fixture.enc"
     restored = workspace / "fixture.restored.txt"
     original = _write_fixture(source, "M-1 disposable encryption fixture\n")
-
     key = Fernet.generate_key()
     cipher = Fernet(key)
     encrypted.write_bytes(cipher.encrypt(source.read_bytes()))
     restored.write_bytes(cipher.decrypt(encrypted.read_bytes()))
-
     restored_hash = hashlib.sha256(restored.read_bytes()).hexdigest()
-    return {
-        "encrypted_bytes": encrypted.stat().st_size,
-        "original_hash": original,
-        "restored_hash": restored_hash,
-        "round_trip_ok": original == restored_hash,
-    }
+    return {"encrypted_bytes": encrypted.stat().st_size, "original_hash": original, "restored_hash": restored_hash, "round_trip_ok": original == restored_hash}
 
 
 def _platform_probe(_: Path) -> dict:
     from offensive.platform_mod import platform_utils
-
-    return {
-        "reported_platform": platform_utils.get_os_type(),
-        "python_platform": platform.system().lower(),
-    }
+    return {"reported_platform": platform_utils.get_os_type(), "python_platform": platform.system().lower()}
 
 
 ADAPTERS = {
@@ -108,7 +93,6 @@ def run_tool(tool_id: str, workspace: Path) -> dict:
     adapter_name = tool.adapter
     if not adapter_name or adapter_name not in ADAPTERS:
         raise RuntimeError(f"No adapter is configured for {tool_id}")
-
     started = time.monotonic()
     result = ADAPTERS[adapter_name](workspace)
     result["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
@@ -133,18 +117,7 @@ def run_in_disposable_workspace(tool_id: str, run_id: str, runtime_root: Path) -
         result = run_tool(tool_id, workspace)
         result["workspace"] = "<temporary disposable workspace>"
         result["workspace_removed_on_exit"] = True
-        audit_log(
-            audit_file,
-            {
-                "timestamp": time.time(),
-                "run_id": run_id,
-                "tool_id": tool.id,
-                "source": tool.source,
-                "execution": tool.execution,
-                "result": result,
-            },
-        )
-        # Make sure nothing accidentally escapes the temporary workspace.
+        audit_log(audit_file, {"timestamp": time.time(), "run_id": run_id, "tool_id": tool.id, "source": tool.source, "execution": tool.execution, "result": result})
         for candidate in workspace.rglob("*"):
             if candidate.is_symlink():
                 candidate.unlink(missing_ok=True)

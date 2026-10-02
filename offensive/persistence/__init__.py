@@ -1,4 +1,5 @@
-"""Persistence source modules kept for audit/research context.
+from . import keyboard_interrupt_suppress
+from . import os_root_save
+from . import ownership_steal
 
-No persistence helper is imported automatically.
-"""
+__all__ = ["keyboard_interrupt_suppress", "os_root_save", "ownership_steal"]

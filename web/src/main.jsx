@@ -105,6 +105,12 @@ function App() {
   const [authorAccess, setAuthorAccess] = useState(null)
   const [approvalText, setApprovalText] = useState('')
   const [requestMessage, setRequestMessage] = useState('')
+  const [theme, setTheme] = useState(() => localStorage.getItem('m1-theme') || 'system')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('m1-theme', theme)
+  }, [theme])
 
   async function refreshStatus() {
     try {
@@ -338,23 +344,54 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  function openFeedback() {
+    setPage('feedback')
+  }
+
+  function submitFeedback(event) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const type = String(form.get('type') || 'feedback')
+    const message = String(form.get('message') || '').trim()
+    if (!message) return
+    const blob = new Blob([
+      `M-1 FEEDBACK\nType: ${type}\nCreated: ${new Date().toISOString()}\n\n${message}\n`,
+    ], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `m1-${type}-${Date.now()}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    event.currentTarget.reset()
+  }
+
   return <div className="app">
     <aside className="sidebar">
       <div className="brand"><div className="brandMark">M</div><div><div className="brandName">M-1</div><div className="brandSub">DEFENSE CONSOLE</div></div></div>
       <div className="sideLabel">LAB CONTROL</div>
       {NAV.map(([id, label, icon]) => <button key={id} className={`nav ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}><span>{icon}</span>{label}{id === 'offensive' && <em>{tools.length || '—'}</em>}{id === 'requests' && <em>{stagedFiles.length || '—'}</em>}</button>)}
+      <div className="sideLabel">PROJECT</div>
+      <button className={`nav ${page === 'contribute' ? 'active' : ''}`} onClick={() => setPage('contribute')}><span>＋</span>Contribute</button>
+      <button className={`nav ${page === 'feedback' ? 'active' : ''}`} onClick={openFeedback}><span>✎</span>Feedback</button>
+      <div className="sideLabel themeLabel">THEME</div>
+      <div className="themeSwitch" role="group" aria-label="Theme">
+        {['black', 'white', 'system'].map(value => <button key={value} className={`themeBtn ${theme === value ? 'active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}>{value}</button>)}
+      </div>
       <div className="sideLabel bottomLabel">BACKEND</div>
       <div className="systemCard"><span className="statusDot" style={{ opacity: connected ? 1 : .3 }}/><div><b>{connected ? 'CONNECTED' : 'DISCONNECTED'}</b><small>{API_BASE || 'same-origin /api'}</small></div></div>
       <p className="safety">Files added with the two project buttons stay in this browser only. They become shared project code only after an author reviews and explicitly pushes an approved request to GitHub.</p>
     </aside>
 
     <main className="main">
-      <div className="topbar"><div><div className="eyebrow">SYSTEM SECURITY ANALYSIS / CONTROL PLANE</div><h1>{NAV.find(([id]) => id === page)?.[1] || 'Overview'}</h1></div><div className="topStatus"><span className="statusDot" style={{ opacity: connected ? 1 : .35 }}/>{connected ? 'API ONLINE' : 'API OFFLINE'}<span className="divider"/>{status?.executable_offensive_tools ?? '—'} LAB TOOLS</div></div>
+      <div className="topbar"><div><div className="eyebrow">SYSTEM SECURITY ANALYSIS / CONTROL PLANE</div><h1>{page === 'contribute' ? 'Contribute' : NAV.find(([id]) => id === page)?.[1] || 'Feedback'}</h1></div><div className="topStatus"><span className="statusDot" style={{ opacity: connected ? 1 : .35 }}/>{connected ? 'API ONLINE' : 'API OFFLINE'}<span className="divider"/>{status?.executable_offensive_tools ?? '—'} LAB TOOLS</div></div>
 
       {page === 'overview' && <Overview {...{ selected, setSelected, running, runAll, connected, result, incidents, stats, activeStage, setPage, status }}/>} 
       {page === 'live' && <LiveTest {...{ selected, setSelected, running, runAll, runSelected, dryRun, events, result, activeStage, error, connected }}/>} 
       {page === 'offensive' && <OffensivePage {...{ tools, connected, running, requestToolRun, logs, result, error, setPage, openAdd: setAddModal, localCounts }}/>} 
       {page === 'requests' && <RequestsPage {...{ stagedFiles, localCounts, pendingRequest, requestMessage, error, addLocal, removeLocalFile, clearLocalStaging, generateProjectRequest, importProjectRequest, requestBusy, adding, authorToken, setAuthorToken, repoValue, setRepoValue, branch, setBranch, commitMessage, setCommitMessage, authorAccess, verifyAccess, approvalText, setApprovalText, approveAndPush }}/>} 
+      {page === 'contribute' && <ContributePage setPage={setPage}/>} 
+      {page === 'feedback' && <FeedbackPage onSubmit={submitFeedback}/>} 
       {page === 'incidents' && <Incidents incidents={incidents} logs={logs}/>} 
       {page === 'recovery' && <Recovery result={result} running={running}/>} 
       {page === 'reports' && <Reports result={result} incidents={incidents} downloadReport={downloadReport}/>} 
@@ -416,6 +453,20 @@ function RequestsPage({ stagedFiles, localCounts, pendingRequest, requestMessage
     <section className="panel"><PanelHead title="3 / Author review & push" sub="GitHub permission is checked before any write" tag={authorAccess ? 'VERIFIED' : 'AUTHOR ONLY'}/><div className="warningBox"><b>Privacy boundary</b><span>The file bundle stays in this browser until the author pushes it. The GitHub token is used only in memory for the current operation and is not stored by this app.</span><b>Required GitHub permission</b><span>Fine-grained token with <code>Contents: read/write</code> on the target repository.</span></div><div className="formGrid"><div><label className="confirmLabel">Author GitHub token</label><input type="password" value={authorToken} onChange={e => setAuthorToken(e.target.value)} placeholder="Fine-grained token" autoComplete="off"/></div><div><label className="confirmLabel">Repository</label><input value={repoValue} onChange={e => setRepoValue(e.target.value)} placeholder="owner/repository"/></div><div><label className="confirmLabel">Branch</label><input value={branch} onChange={e => setBranch(e.target.value)} placeholder="Blank = default branch"/></div><div><label className="confirmLabel">Commit message</label><input value={commitMessage} onChange={e => setCommitMessage(e.target.value)} placeholder="Add approved M-1 extension"/></div></div><div className="modalActions"><button className="secondaryBtn" disabled={!pendingRequest || requestBusy} onClick={verifyAccess}>VERIFY AUTHOR ACCESS</button>{authorAccess && <span className="liveTag live">PUSH ACCESS VERIFIED: {authorAccess.ownerName}</span>}</div>{pendingRequest && <div className="approvalBox"><label className="confirmLabel">Review target files before approval</label><div className="managedGrid">{pendingRequest.files.map(file => <div className="managedRow" key={`${file.kind}:${file.targetPath}`}><span className={`managedBadge ${file.kind}`}>{file.kind}</span><code>{file.targetPath}</code><span>{file.bytes.toLocaleString()} B</span></div>)}</div><label className="confirmLabel">Type {APPROVAL_PHRASE} to commit and push this request</label><input value={approvalText} onChange={e => setApprovalText(e.target.value)} placeholder={APPROVAL_PHRASE}/><button className="runBtn fullBtn" disabled={!authorAccess || approvalText.trim() !== APPROVAL_PHRASE || requestBusy} onClick={approveAndPush}>{requestBusy ? 'PUSHING…' : 'AUTHOR APPROVES — COMMIT & PUSH'}</button></div>}</section>
 
     {activeAdd && <LocalAddModal kind={activeAdd} onClose={() => !adding && setActiveAdd(null)} onAdd={async (kind, files) => { await addLocal(kind, files); setActiveAdd(null) }} adding={adding}/>} 
+  </>
+}
+
+function ContributePage({ setPage }) {
+  return <>
+    <section className="hero"><div><div className="heroKicker">COMMUNITY CONTRIBUTION</div><h2>Contribute without bypassing author control.</h2><p>Add files locally, review the generated request, and let the repository author decide what becomes shared project code.</p></div><button className="runBtn" onClick={() => setPage('requests')}>OPEN PROJECT REQUESTS →</button></section>
+    <section className="grid"><section className="panel"><PanelHead title="Contributor flow" sub="Designed for local-first changes" tag="SAFE"/><div className="stepGrid"><Step n="01" title="Stage locally" text="Choose a file or folder. It stays in this browser's IndexedDB." done/><Step n="02" title="Generate request" text="Create a signed-by-content .m1request bundle that can move between devices." done/><Step n="03" title="Author review" text="The author checks paths, content hashes and GitHub push permission." done/><Step n="04" title="Explicit push" text="Only the author can type APPROVE AND PUSH and commit the accepted files." done/></div></section><section className="panel"><PanelHead title="What gets shared" sub="Only after approval" tag="AUTHOR GATED"/><div className="empty" style={{textAlign:'left'}}><p>Accepted files are committed under:</p><code>offensive/extensions/...</code><br/><code>defensive/extensions/...</code><p>New offensive Python files remain blocked until a bounded execution adapter has been reviewed.</p></div></section></div>
+  </>
+}
+
+function FeedbackPage({ onSubmit }) {
+  return <>
+    <section className="hero"><div><div className="heroKicker">FEEDBACK</div><h2>Tell me what broke, confused you, or could be better.</h2><p>This page creates a plain-text feedback file on your device. It is not uploaded automatically.</p></div><a className="secondaryBtn" href="https://github.com/Abhijit251109/System_Analysis-Offensive_Security-Tool/issues" target="_blank" rel="noreferrer">OPEN GITHUB ISSUES ↗</a></section>
+    <section className="panel feedbackPanel"><PanelHead title="Feedback form" sub="Local export only" tag="PRIVATE"/><form className="feedbackForm" onSubmit={onSubmit}><label className="confirmLabel">Type</label><select name="type" defaultValue="feedback"><option value="feedback">General feedback</option><option value="bug">Bug report</option><option value="feature">Feature request</option><option value="documentation">Documentation</option></select><label className="confirmLabel">Message</label><textarea name="message" required rows="9" placeholder="Describe what you saw and what you expected…"/><button className="runBtn" type="submit">EXPORT FEEDBACK .TXT</button></form></section>
   </>
 }
 

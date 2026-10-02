@@ -10,6 +10,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from controller.baseline import LabBaseline
@@ -38,6 +39,12 @@ LAB_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = LAB_ROOT / "web"
 DIST = WEB_ROOT / "dist"
 RUNTIME_ROOT = LAB_ROOT / "runtime"
+
+# Serve the production Vite bundle from the same FastAPI origin. This keeps the
+# deployed dashboard and API on one origin, so the browser can call /api/*
+# without a separately configured API key or backend hostname.
+if DIST.exists():
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
 
 class TestRequest(BaseModel):
@@ -246,7 +253,6 @@ async def offensive_stream(request: OffensiveRunRequest):
     if not request.confirm or request.confirmation_text.strip() != "I UNDERSTAND":
         raise HTTPException(status_code=428, detail="Explicit confirmation is required. Type I UNDERSTAND.")
     if tool.execution == "blocked":
-        # Stream the warning and blocked state so the dashboard records exactly what happened.
         return StreamingResponse(offensive_event_stream(request), media_type="text/event-stream")
     return StreamingResponse(offensive_event_stream(request), media_type="text/event-stream")
 

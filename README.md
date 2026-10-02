@@ -1,46 +1,34 @@
 # M-1 — System Security Analysis Lab
 
-M-1 is a controlled cybersecurity lab console for learning how offensive-looking behaviors can be surfaced, detected, contained, audited and recovered in a disposable environment.
+M-1 is a controlled cybersecurity learning lab for observing bounded security scenarios, detecting them, containing them, and verifying that the lab baseline remains intact. The original offensive-looking source tree remains available for audit, while the dashboard only exposes finite, disposable lab adapters.
 
-## What changed in this version
+## Current dashboard
 
-The React dashboard no longer pretends that a run happened when the Python API is offline. Live buttons are disabled until the API is reachable, and every stream must end with a controller completion event.
+The React dashboard includes:
 
-The dashboard also has an **Offensive Tools** page. It inventories the actual `offensive/` source tree and shows the source module, capability, risk and execution mode for each entry.
+- Overview, Live Test, Offensive Tools, Project Requests, Incidents, Recovery and Reports.
+- Sidebar themes: **Black**, **White**, and **System**. The selection is stored locally in the browser.
+- **Contribute** workflow: stage files locally, generate a `.m1request`, and let the repository author review and explicitly approve the GitHub commit.
+- **Feedback** workflow: export feedback as a local `.txt` file or open the GitHub Issues page.
+- Local-only browser staging. Selected files are not uploaded to the M-1 backend merely by being added.
+- Explicit `I UNDERSTAND` confirmation for executable lab adapters.
 
-Some original modules are deliberately marked **blocked** because they can:
+## Safety boundary
 
-- capture real keyboard input;
-- modify protected OS paths;
-- request administrator/root privileges;
-- execute arbitrary shell commands;
-- register persistence or change ownership/permissions; or
-- run without a meaningful resource bound.
+The dashboard does not directly execute the destructive or privileged source modules in `offensive/`. Host-level keyboard capture, arbitrary shell execution, protected-path modification, persistence registration, and privilege escalation are blocked. Finite adapters run only in a disposable workspace.
 
-Those sources remain in the repository for code review and research context. The web console never launches them directly.
+## Run locally
 
-For the executable entries, the console uses bounded **lab adapters** that run only inside a temporary disposable workspace. The user must first open the warning dialog and type `I UNDERSTAND`.
-
-## Execution modes
-
-### Safe simulations
-
-```bash
-python -m controller.test_runner --scenario all --lab-root .
-```
-
-These exercise the detection, containment, snapshot and recovery pipeline with synthetic events.
-
-### Dashboard API
+### Backend
 
 ```bash
 python -m pip install -r api/requirements.txt
 python run_dashboard.py
 ```
 
-The API listens on `http://127.0.0.1:8000` by default.
+The FastAPI service listens on `http://127.0.0.1:8000` by default.
 
-### React dashboard
+### Frontend
 
 ```bash
 cd web
@@ -48,52 +36,36 @@ npm install
 npm run dev
 ```
 
-For local development Vite proxies `/api` to `http://127.0.0.1:8000`.
+Vite proxies `/api` to `http://127.0.0.1:8000` during local development.
 
-## GitHub Pages
-
-GitHub Pages can host the frontend, but it cannot execute Python. Set the repository variable `M1_API_BASE_URL` to the public URL of your separately hosted FastAPI service before deploying Pages.
-
-The workflow builds with:
-
-```text
-VITE_API_BASE_URL=${{ vars.M1_API_BASE_URL }}
-```
-
-When the API is unavailable, the UI stays in **offline** mode instead of silently switching to a fake live run.
-
-## Render deployment
-
-The repository includes a `Dockerfile` and `render.yaml` for a single-service Render deployment. The container builds the React dashboard and serves it through FastAPI. Render should deploy it as a Docker Web Service; the container binds to `0.0.0.0:$PORT` and exposes `/api/health` for the health check.
-
-The dashboard also has **ADD TO OFFENSIVE** and **ADD TO DEFENSIVE** buttons. These are browser-local staging controls: selected files and folders are kept in the current user's IndexedDB and are not uploaded to the M-1 service. A contributor can generate a `.m1request` bundle; the repository author imports it, reviews the exact paths, verifies GitHub push permission, and explicitly approves the commit/push. Approved files are written under `offensive/extensions` or `defensive/extensions`.
-
-See [RENDER.md](RENDER.md) for the deployment and persistence details.
-
-## Tests
+## Test
 
 ```bash
 python -m pytest -q
 ```
 
-The tests cover the simulation pipeline, OS-defense handoff, recovery and the offensive-tool safety boundary.
+The acceptance tests cover the simulation pipeline, OS-defense handoff, recovery, and the offensive-tool safety boundary.
 
-### Defensive extension contract
+## GitHub Pages
 
-A `.py` file uploaded to `defensive/extensions` can become an active detection rule without importing or executing the file. Put a literal named `M1_RULES` in the file:
+GitHub Pages can host the React frontend, but it cannot run Python. The Pages workflow reads the repository variable `M1_API_BASE_URL` and injects it as `VITE_API_BASE_URL` at build time.
 
-```python
-M1_RULES = {
-    "custom_event": ("HIGH", "Custom defensive rule matched")
-}
-```
+The workflow uses Node.js 22 and the current GitHub Pages artifact/deploy actions.
 
-The controller reads that literal with `ast.literal_eval()` and merges the resulting rules into the defensive detector. Arbitrary functions in uploaded files are not executed automatically.
+## Render
 
-## Local project contribution workflow
+The repository includes `Dockerfile` and `render.yaml` for a single Docker web service. The container builds the frontend and serves it from FastAPI. The health check is `/api/health`, and the service binds to `0.0.0.0:$PORT`.
 
-The two project buttons are deliberately **local-only**. Adding a file does not upload it to the server or make it visible to other users.
+## Contribution approval model
 
-Use **Project Requests** to generate a `.m1request` bundle. The repository author imports that request, reviews its paths and contents, verifies GitHub push permission, and explicitly types `APPROVE AND PUSH`. Only then does the app commit and push the approved files to `offensive/extensions` or `defensive/extensions`.
+1. A contributor selects files or a folder from the **Contribute** or **Project Requests** UI.
+2. Files are stored in the current browser's IndexedDB staging area.
+3. A `.m1request` bundle can be generated and shared with the repository author.
+4. The author imports the request, reviews the exact target paths, and verifies GitHub push permission.
+5. The author explicitly types `APPROVE AND PUSH` before the app creates blobs, a tree, a commit, and a non-forced branch update.
 
-New offensive Python files are inventoried but remain blocked from direct dashboard execution until a bounded lab adapter is reviewed and added.
+Accepted files are written under `offensive/extensions/...` or `defensive/extensions/...`.
+
+## Recovery boundary
+
+The project can create and verify a disposable lab snapshot. Whole-system rollback should remain the responsibility of an external VM/hypervisor snapshot system; the application does not attempt to modify host or hypervisor state.

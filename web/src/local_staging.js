@@ -215,11 +215,7 @@ export async function validateRequestPayload(payload) {
     const raw = String(file.content_base64 || '')
     if (!raw) throw new Error(`Missing content for ${relativePath}`)
     let binary
-    try {
-      binary = atob(raw)
-    } catch {
-      throw new Error(`Invalid base64 content for ${relativePath}`)
-    }
+    try { binary = atob(raw) } catch { throw new Error(`Invalid base64 content for ${relativePath}`) }
     const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
     if (bytes.length !== Number(file.bytes)) throw new Error(`Size mismatch for ${relativePath}`)
     if (bytes.length > LOCAL_MAX_FILE_BYTES) throw new Error(`Request file is too large: ${relativePath}`)

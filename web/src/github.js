@@ -41,7 +41,6 @@ export async function verifyAuthorAccess(token, repoValue, requestedBranch = '')
   return { ...info, ownerName: info.owner?.login || owner, branch }
 }
 
-
 export async function pushApprovedRequest(token, repoValue, branch, commitMessage, request) {
   if (!token?.trim()) throw new Error('Author GitHub token is required.')
   const { owner, repo } = parseRepo(repoValue)
@@ -56,7 +55,6 @@ export async function pushApprovedRequest(token, repoValue, branch, commitMessag
 
   const treeEntries = []
   for (const file of request.files) {
-    // Blobs are created with base64 so binary files are preserved exactly.
     const blob = await githubRequest(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs`, token.trim(), {
       method: 'POST',
       body: JSON.stringify({ content: file.content_base64, encoding: 'base64' }),
@@ -75,7 +73,6 @@ export async function pushApprovedRequest(token, repoValue, branch, commitMessag
     body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
   })
 
-  // Non-forced update: if somebody moved the branch meanwhile, the push fails instead of overwriting their work.
   const updatedRef = await githubRequest(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/refs/heads/${encodeURIComponent(targetBranch)}`, token.trim(), {
     method: 'PATCH',
     body: JSON.stringify({ sha: commit.sha, force: false }),

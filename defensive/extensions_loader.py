@@ -9,19 +9,9 @@ ROOT = Path(__file__).resolve().parent / "extensions"
 
 
 def load_extension_rules() -> dict[str, tuple[Severity, str]]:
-    """Read optional M1_RULES literals without importing uploaded code.
-
-    A defensive extension may declare a literal like:
-
-        M1_RULES = {"custom_event": ("HIGH", "Custom event detected")}
-
-    The source is parsed statically with ast.literal_eval; no uploaded function or
-    module code is executed.
-    """
     rules: dict[str, tuple[Severity, str]] = {}
     if not ROOT.exists():
         return rules
-
     for path in ROOT.glob("*.py"):
         if path.name.startswith("_"):
             continue

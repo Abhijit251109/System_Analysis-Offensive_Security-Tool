@@ -1,5 +1,4 @@
-"""Cryptography helpers.
+from . import encryption_key_manager
+from . import encryptor1
 
-Legacy modules are intentionally not imported at package import time because some
-of them create files as a side effect of import.
-"""
+__all__ = ["encryption_key_manager", "encryptor1"]
