@@ -4,6 +4,7 @@ The recommended deployment is a **single Render web service**. The Docker image 
 
 ## Render
 
+- Node.js build version: `20.20.2`
 - Runtime: Docker
 - Dockerfile: `./Dockerfile`
 - Docker context: `.`

@@ -17,6 +17,8 @@ Equivalent manual settings are:
 
 The container listens on `0.0.0.0:$PORT`.
 
+Node.js is pinned to **20.20.2** for the frontend build. The repository also includes `.node-version`, `.nvmrc`, and `web/package.json` `engines.node` so a native Render Node service cannot silently select Render's Node 24 default.
+
 ## Local project files and author approval
 
 The **ADD TO OFFENSIVE** and **ADD TO DEFENSIVE** buttons do **not** upload files to Render. Selected files/folders are staged in the current browser's IndexedDB storage.

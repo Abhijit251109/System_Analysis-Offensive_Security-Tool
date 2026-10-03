@@ -50,7 +50,7 @@ The acceptance tests cover the simulation pipeline, OS-defense handoff, recovery
 
 GitHub Pages can host the React frontend, but it cannot run Python. The Pages workflow reads the repository variable `M1_API_BASE_URL` and injects it as `VITE_API_BASE_URL` at build time.
 
-The workflow uses Node.js 22 and the current GitHub Pages artifact/deploy actions.
+The workflow uses Node.js 20.20.2 and the current GitHub Pages artifact/deploy actions.
 
 ## Render
 

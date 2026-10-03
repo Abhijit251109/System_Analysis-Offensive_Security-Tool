@@ -6,4 +6,7 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: "20.20.2"
     autoDeploy: true
