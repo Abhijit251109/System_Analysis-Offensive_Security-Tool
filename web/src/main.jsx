@@ -231,7 +231,7 @@ function App() {
   }
 
   function confirmToolRun() {
-    if (!warningTool || warningTool.execution === 'blocked') return
+    if (!warningTool || warningTool.execution === 'unblock') return
     if (confirmationText.trim() !== CONFIRMATION_PHRASE) return
     const tool = warningTool
     setWarningTool(null)
@@ -425,7 +425,7 @@ function OffensivePage({ tools, connected, running, requestToolRun, logs, result
     <section className="hero"><div><div className="heroKicker">OFFENSIVE SOURCE INVENTORY</div><h2>Real source tree, controlled execution.</h2><p>The buttons below stage files locally in this browser. They are not uploaded to the M-1 backend. To change the real repository, generate a change request and let the author review and push it.</p></div><div className="heroActions"><button className="secondaryBtn" onClick={() => openAdd('offensive')}>＋ ADD TO OFFENSIVE</button><button className="secondaryBtn" onClick={() => openAdd('defensive')}>＋ ADD TO DEFENSIVE</button><button className="secondaryBtn" onClick={() => setPage('requests')}>OPEN REQUESTS →</button><span className={`liveTag ${connected ? 'live' : ''}`}>{connected ? 'API CONNECTED' : 'API OFFLINE'}</span></div></section>
     {error && <div className="errorBanner">TOOL NOTICE: {error}</div>}
     <section className="adminWire"><div><b>LOCAL STAGING → AUTHOR APPROVAL → GIT PUSH</b><p>OFFENSIVE staged: <strong>{localCounts.offensive}</strong> · DEFENSIVE staged: <strong>{localCounts.defensive}</strong>. Staged content never goes to the server. Accepted requests are committed under <code>offensive/extensions</code> or <code>defensive/extensions</code>.</p></div><div className="wireCounts"><span>LOCAL ONLY <strong>{localCounts.offensive + localCounts.defensive}</strong></span><span>SHARED <strong>AUTHOR APPROVAL</strong></span></div></section>
-    <section className="toolGrid">{tools.length ? tools.map(tool => <article className="toolCard" key={tool.id}><div className="toolTop"><span className={`severity ${tool.risk}`}>{tool.risk}</span><span className="toolMode">{tool.execution.replaceAll('_', ' ')}</span></div><h3>{tool.name}</h3><code>{tool.source}</code><p>{tool.description}</p><div className="toolMeta"><span>{tool.capability}</span>{tool.execution === 'blocked' ? <button className="secondaryBtn" disabled>BLOCKED BY DESIGN</button> : <button className="runBtn smallBtn" disabled={!connected || running} onClick={() => requestToolRun(tool)}>{running ? 'RUNNING…' : 'RUN TOOL'}</button>}</div></article>) : <div className="panel empty large">Connect to the API to load the offensive module inventory.</div>}</section>
+    <section className="toolGrid">{tools.length ? tools.map(tool => <article className="toolCard" key={tool.id}><div className="toolTop"><span className={`severity ${tool.risk}`}>{tool.risk}</span><span className="toolMode">{tool.execution.replaceAll('_', ' ')}</span></div><h3>{tool.name}</h3><code>{tool.source}</code><p>{tool.description}</p><div className="toolMeta"><span>{tool.capability}</span>{tool.execution === 'unblocked' ? <button className="secondaryBtn" disabled>BLOCKED BY DESIGN</button> : <button className="runBtn smallBtn" disabled={!connected || running} onClick={() => requestToolRun(tool)}>{running ? 'RUNNING…' : 'RUN TOOL'}</button>}</div></article>) : <div className="panel empty large">Connect to the API to load the offensive module inventory.</div>}</section>
     {(logs.length || result) ? <section className="panel"><PanelHead title="Latest tool stream" sub="Evidence received from the backend" tag={running ? 'LIVE' : 'AUDIT'}/><div className="stream">{logs.map((event, i) => <div className="streamRow" key={i}><span>{event.type.toUpperCase()}</span><p>{event.data?.message || JSON.stringify(event.data)}</p></div>)}{result && <div className="streamRow"><span>RESULT</span><p>{JSON.stringify(result)}</p></div>}</div></section> : null}
   </>
 }
@@ -471,7 +471,7 @@ function FeedbackPage({ onSubmit }) {
 }
 
 function ToolWarningModal({ tool, value, setValue, onClose, onConfirm }) {
-  const blocked = tool.execution === 'blocked'
+  const blocked = tool.execution === 'unblock'
   return <div className="modalBackdrop"><div className="modal"><div className="heroKicker">PRE-EXECUTION CHECK</div><h2>{blocked ? 'Tool blocked' : `Run ${tool.name}?`}</h2><p className="warningText">{tool.warning}</p><div className="warningBox"><b>Source</b><code>{tool.source}</code><b>Capability</b><span>{tool.capability}</span><b>Risk</b><span className={`severity ${tool.risk}`}>{tool.risk}</span><b>Execution mode</b><span>{tool.execution}</span></div>{blocked ? <><p className="modalNote">{tool.blocked_reason}</p><button className="secondaryBtn fullBtn" onClick={onClose}>CLOSE</button></> : <><label className="confirmLabel">Type {CONFIRMATION_PHRASE} to confirm</label><input value={value} onChange={e => setValue(e.target.value)} placeholder={CONFIRMATION_PHRASE} autoFocus/><div className="modalActions"><button className="secondaryBtn" onClick={onClose}>CANCEL</button><button className="runBtn" disabled={value.trim() !== CONFIRMATION_PHRASE} onClick={onConfirm}>I UNDERSTAND — RUN</button></div></>}</div></div>
 }
 
