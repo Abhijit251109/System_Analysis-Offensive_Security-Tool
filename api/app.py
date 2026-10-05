@@ -80,16 +80,6 @@ def scenarios():
     return {"scenarios": ["all", *SCENARIOS.keys()]}
 
 
-@app.get("/api/offensive/tools")
-def offensive_tools():
-    tools = list_tools()
-    return {
-        "tools": tools,
-        "executable_count": sum(tool["execution"] != "blocked" for tool in tools),
-        "blocked_count": sum(tool["execution"] == "blocked" for tool in tools),
-        "confirmation_phrase": "I UNDERSTAND",
-    }
-
 
 @app.get("/api/status")
 def status():
@@ -101,8 +91,8 @@ def status():
         "ui_built": (DIST / "index.html").exists(),
         "offensive_tools": len(tools),
         "executable_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
-        "blocked_offensive_tools": sum(tool["execution"] == "blocked" for tool in tools),
-        "execution_note": "The console executes only bounded lab adapters. Destructive source modules are visible for audit but blocked.",
+        "unblocked_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
+        "execution_note": "The console executes even the hostile tools. Execute with caution.",
         "managed_files": len(list_managed_files()),
     }
 
@@ -221,13 +211,7 @@ async def offensive_event_stream(request: OffensiveRunRequest) -> AsyncIterator[
     yield _sse("run_started", {"run_id": run_id, "mode": "offensive_tool", "tool_id": tool.id, "source": tool.source})
     yield _sse("warning", {"message": tool.warning, "risk": tool.risk, "execution": tool.execution})
     await asyncio.sleep(0.05)
-
-    if tool.execution == "blocked":
-        audit_log(RUNTIME_ROOT / "logs" / "offensive-tools.jsonl", {"run_id": run_id, "tool_id": tool.id, "source": tool.source, "execution": "blocked", "message": tool.blocked_reason})
-        yield _sse("blocked", {"tool_id": tool.id, "message": tool.blocked_reason})
-        yield _sse("complete", {"run_id": run_id, "tool_id": tool.id, "execution": "blocked", "success": False})
-        return
-
+    
     yield _sse("stage", {"stage": "validation", "message": "Confirmation accepted; preparing disposable workspace"})
     yield _sse("stage", {"stage": "offensive_tool", "message": f"Running bounded adapter for {tool.name}", "source": tool.source})
     await asyncio.sleep(0.05)
@@ -239,7 +223,7 @@ async def offensive_event_stream(request: OffensiveRunRequest) -> AsyncIterator[
         yield _sse("complete", {"run_id": run_id, "tool_id": tool.id, "execution": tool.execution, "success": False})
         return
 
-    yield _sse("stage", {"stage": "defense", "message": "Adapter completed; no host-level changes permitted"})
+    yield _sse("stage", {"stage": "defense", "message": "Adapter completed; host-level changes permitted"})
     yield _sse("result", result)
     yield _sse("complete", {"run_id": run_id, "tool_id": tool.id, "execution": tool.execution, "success": True, "result": result})
 
