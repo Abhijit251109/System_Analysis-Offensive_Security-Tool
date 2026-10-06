@@ -26,10 +26,17 @@ from offensive.simulations.scenarios import SCENARIOS, run_scenario
 
 app = FastAPI(title="M-1 Defense API", version="4.0.0")
 
-allowed_origins = [item.strip() for item in os.getenv("M1_ALLOWED_ORIGINS", "*").split(",") if item.strip()]
+DEFAULT_ALLOWED_ORIGIN = "https://abhijit251109.github.io"
+allowed_origins = [
+    item.strip()
+    for item in os.getenv("M1_ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGIN).split(",")
+    if item.strip()
+]
+if not allowed_origins:
+    allowed_origins = [DEFAULT_ALLOWED_ORIGIN]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -92,13 +99,18 @@ def status():
         "offensive_tools": len(tools),
         "executable_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
         "unblocked_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
-        "execution_note": "The console executes even the hostile tools. Execute with caution.",
+        "execution_note": "Only read-only probes and bounded lab adapters can run; original hostile tools are blocked.",
         "managed_files": len(list_managed_files()),
     }
 
 
 def project_extensions():
     return {"files": list_managed_files()}
+
+
+@app.get("/api/offensive/tools")
+def offensive_tools():
+    return {"tools": list_tools()}
 
 
 @app.get("/api/project/extensions")

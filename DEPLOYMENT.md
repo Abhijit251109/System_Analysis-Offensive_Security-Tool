@@ -21,6 +21,6 @@ If the dashboard is deployed separately (for example GitHub Pages), set `VITE_AP
 VITE_API_BASE_URL=https://your-api.example.com
 ```
 
-The FastAPI service accepts cross-origin requests from the comma-separated `M1_ALLOWED_ORIGINS` environment variable. Leave it unset for the recommended same-origin Render deployment.
+The FastAPI service accepts cross-origin requests from the comma-separated `M1_ALLOWED_ORIGINS` environment variable. When unset, it allows the configured GitHub Pages origin (`https://abhijit251109.github.io`). Same-origin Render requests need no CORS setting. Set the variable for any other separately hosted dashboard origin.
 
 Do not put backend secrets, service-role credentials, or private API keys in the React/Vite environment. Anything prefixed with `VITE_` is bundled into browser JavaScript.
