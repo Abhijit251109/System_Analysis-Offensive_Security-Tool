@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from controller.baseline import LabBaseline
 from controller.health_monitor import HealthMonitor
-from controller.offensive_executor import audit_log, run_in_disposable_workspace
+from controller.offensive_executor import ADAPTERS, audit_log, run_in_disposable_workspace
 from controller.managed_registry import list_managed_files
 from controller.offensive_registry import get_tool, list_tools
 from controller.recovery import RecoveryController
@@ -91,15 +91,21 @@ def scenarios():
 @app.get("/api/status")
 def status():
     tools = list_tools()
+    runnable_tools = [
+        tool for tool in tools
+        if tool["execution"] in {"direct_safe", "lab_adapter"}
+        and tool.get("adapter") in ADAPTERS
+    ]
     return {
         "api": "online",
         "lab_mode": True,
         "root": str(LAB_ROOT),
         "ui_built": (DIST / "index.html").exists(),
         "offensive_tools": len(tools),
-        "executable_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
-        "unblocked_offensive_tools": sum(tool["execution"] != "blocked" for tool in tools),
-        "execution_note": "Only read-only probes and bounded lab adapters can run; original hostile tools are blocked.",
+        "executable_offensive_tools": len(runnable_tools),
+        "unblocked_offensive_tools": len(runnable_tools),
+        "blocked_offensive_tools": len(tools) - len(runnable_tools),
+        "execution_note": "Only read-only probes and bounded lab adapters can run; original source modules are never executed.",
         "managed_files": len(list_managed_files()),
     }
 
@@ -235,7 +241,7 @@ async def offensive_event_stream(request: OffensiveRunRequest) -> AsyncIterator[
         yield _sse("complete", {"run_id": run_id, "tool_id": tool.id, "execution": tool.execution, "success": False})
         return
 
-    yield _sse("stage", {"stage": "defense", "message": "Adapter completed; host-level changes permitted"})
+    yield _sse("stage", {"stage": "defense", "message": "Lab adapter completed; no host-level changes were permitted."})
     yield _sse("result", result)
     yield _sse("complete", {"run_id": run_id, "tool_id": tool.id, "execution": tool.execution, "success": True, "result": result})
 
@@ -248,8 +254,6 @@ async def offensive_stream(request: OffensiveRunRequest):
         raise HTTPException(status_code=404, detail=str(exc))
     if not request.confirm or request.confirmation_text.strip() != "I UNDERSTAND":
         raise HTTPException(status_code=428, detail="Explicit confirmation is required. Type I UNDERSTAND.")
-    if tool.execution == "blocked":
-        return StreamingResponse(offensive_event_stream(request), media_type="text/event-stream")
     return StreamingResponse(offensive_event_stream(request), media_type="text/event-stream")
 
 

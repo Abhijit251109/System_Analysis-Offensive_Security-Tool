@@ -152,7 +152,7 @@ function App() {
   }, [])
 
   const incidents = useMemo(() => events.filter(e => e.type === 'incident').map(e => e.data), [events])
-  const logs = useMemo(() => events.filter(e => ['stage', 'error', 'warning', 'blocked', 'result'].includes(e.type)), [events])
+  const logs = useMemo(() => events.filter(e => ['stage', 'error', 'warning', 'unblocked', 'result'].includes(e.type)), [events])
   const stats = useMemo(() => ({
     detected: incidents.length,
     contained: incidents.filter(i => i.contained).length,
