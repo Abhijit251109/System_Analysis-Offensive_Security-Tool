@@ -1,6 +1,7 @@
 .venv/
 .venv1/
 .vscode
+.idea/
 __pycache__
 MyTool.spec
 *.pyc
@@ -10,3 +11,6 @@ MyTool.spec
 *.egg-info
 dist/
 build/
+node_modules/
+.gradle/
+local.properties
